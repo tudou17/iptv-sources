@@ -71,7 +71,25 @@ function genTvBoxDateString(originalString: string): string {
 }
 
 function genTvBoxChannelName(originalString: string): string {
-  return originalString.toUpperCase();
+  // 去掉 CCTV 与数字间的连字符: CCTV-1 -> CCTV1
+  const name = originalString.toUpperCase().replace(/^CCTV-(\d)/, 'CCTV$1');
+
+  // CCTV-4 多语言：仅 (亚洲) 归一为 CCTV4，(美洲)/(欧洲) 保留地区
+  const region = name.match(/^CCTV4\s*\(?(亚洲|美洲|欧洲)\)?/);
+  if (region) {
+    return region[1] === '亚洲' ? 'CCTV4' : name;
+  }
+
+  // CCTV5+ 等：保留 +
+  const plus = name.match(/^(CCTV\d+\+)/);
+  if (plus) return plus[1];
+
+  // CCTV4K/CCTV8K：保留 K
+  const k = name.match(/^(CCTV\d+K)/);
+  if (k) return k[1];
+
+  // 普通 CCTV\d+：去掉数字后的非数字后缀
+  return name.replace(/^(CCTV\d+)[^\d]*$/, '$1');
 }
 
 async function fetchChannelEpg(channelId: string, date: string): Promise<string | null> {

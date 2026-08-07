@@ -10,6 +10,7 @@ import {
   mergeTxts,
   writeEpgJsonByDate,
   writeEpgXML,
+  writeEpgXmlGz,
   writeM3u,
   writeM3uToTxt,
   writeSources,
@@ -87,10 +88,11 @@ cleanFiles();
     );
 
     // epg.pw EPG: 从频道列表页抓取所有频道并逐一拉取 EPG，合并为完整 XML
+    // 仅输出 .xml.gz：合并后体积可能超过 Cloudflare Pages 25MB 单文件上限
     try {
       console.log('[TASK] Build EPG from epg.pw ...');
       const epgPwXml = await buildEpgPwXml();
-      await writeEpgXML('epg_pw', epgPwXml);
+      await writeEpgXmlGz('epg_pw', epgPwXml);
       console.log('[TASK] EPG from epg.pw written successfully');
     } catch (e) {
       console.warn('[WARNING] EPG from epg.pw failed:', e);

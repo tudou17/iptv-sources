@@ -47,7 +47,7 @@
 | 51zmt | `https://your-domain.pages.dev/epg/51zmt.xml` |
 | 51zmt cc | `https://your-domain.pages.dev/epg/51zmt_cc.xml` |
 | 51zmt 地方台 | `https://your-domain.pages.dev/epg/51zmt_df.xml` |
-| epg.pw China 聚合 | `https://your-domain.pages.dev/epg/epg_pw.xml` |
+| epg.pw China 聚合 | `https://your-domain.pages.dev/epg/epg_pw.xml.gz` |
 
 在 M3U 头部使用 `x-tvg-url` 指向上述任一地址即可，例如：
 

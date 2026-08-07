@@ -97,7 +97,7 @@ export const updateReadme = (
             } |`
         )
         .join('\n')}
-| epg.pw（中国地区聚合） | [epg_pw.xml](/epg/epg_pw.xml) | 独立构建 |
+| epg.pw（中国地区聚合） | [epg_pw.xml.gz](/epg/epg_pw.xml.gz) | 独立构建 |
 
 \n\nUpdated at **${new Date()}**`
     );

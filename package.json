@@ -57,10 +57,5 @@
     "markdown-it": "14.1.0",
     "opencc-js": "1.0.5",
     "xml2js": "^0.6.2"
-  },
-  "pnpm": {
-    "overrides": {
-      "rollup": "npm:@rollup/wasm-node"
-    }
   }
 }

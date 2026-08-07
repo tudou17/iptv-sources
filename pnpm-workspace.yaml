@@ -1,0 +1,6 @@
+allowBuilds:
+  esbuild: true
+overrides:
+  rollup: npm:@rollup/wasm-node
+onlyBuiltDependencies:
+  - esbuild

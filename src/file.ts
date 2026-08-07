@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
 import { hrtime } from 'process';
 import { fileURLToPath } from 'url';
+import { gzipSync } from 'zlib';
 
 import type { TEPGSource } from './epgs/utils';
 import type { ISource } from './sources';
@@ -115,6 +116,11 @@ export const writeEpgXML = async (f_name: string, xml: string) => {
   const epgDir = await createSubDirectory('m3u', 'epg');
   await writeFile(path.join(epgDir, `${f_name}.xml`), xml);
 };
+
+export const writeEpgXmlGz = async (f_name: string, xml: string) => {
+  const epgDir = await createSubDirectory('m3u', 'epg');
+  await writeFile(path.join(epgDir, `${f_name}.xml.gz`), gzipSync(xml));
+};
 export async function makeEpgDir() {
   return await createSubDirectory('m3u', 'epg');
 }
@@ -142,7 +148,6 @@ export const writeEpgJsonFromXml = async (provider: string, xml: string) => {
 
 /**
  * 解析 m3u/epg 下所有 .xml，按日期(YYYYmmdd)、频道生成 JSON 到 epg/{provider}/{date}/channelname.json
- * （epg_pw 在构建时由 epg_pw 模块单独写入 JSON，此处跳过避免重复解析大文件）
  */
 export const writeEpgJsonByDate = async () => {
   const epgDir = path.join(projectRoot, 'm3u', 'epg');
@@ -154,7 +159,6 @@ export const writeEpgJsonByDate = async () => {
   );
 
   for (const f of xmlFiles) {
-    if (f === 'epg_pw.xml') continue;
     const provider = f.split('.')[0];
     const xml = fs.readFileSync(path.join(epgDir, f), 'utf-8');
     await writeEpgJsonFromXml(provider, xml);
