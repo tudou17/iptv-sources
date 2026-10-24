@@ -2,7 +2,9 @@ import { promises as fsPromises } from 'fs';
 import path from 'path';
 
 import { parseTvboxJson, type TVBoxConfig } from '@whyun/tv-tools';
-import { get_custom_url } from '../utils';
+import { projectRoot } from '../file';
+import { CHANNEL_LOGO_BASE_URL } from '../playlist';
+import { getCustomUrl } from '../utils';
 const TVBOX_JSON_URL = 'http://tvbox.xn--4kq62z5rby2qupq9ub.top/';
 async function fetchBodyTextWithOkhttp(url: string): Promise<{
   bodyText: string;
@@ -23,10 +25,10 @@ async function fetchBodyTextWithOkhttp(url: string): Promise<{
 
 interface ITvBoxLiveSrc {
   name: string;
-  f_name: string;
+  filename: string;
 }
 
-const gen_tvbox_json = async (srcs: ITvBoxLiveSrc[]): Promise<TVBoxConfig> => {
+const genTvBoxJson = async (srcs: ITvBoxLiveSrc[]): Promise<TVBoxConfig> => {
   if (srcs.length < 1) {
     throw new Error('No sources for tvbox found!');
   }
@@ -37,32 +39,32 @@ const gen_tvbox_json = async (srcs: ITvBoxLiveSrc[]): Promise<TVBoxConfig> => {
     lives: [],
   } as TVBoxConfig;
 
-  j.lives = srcs.map(({ name, f_name }) => ({
+  j.lives = srcs.map(({ name, filename }) => ({
     // group: name,
     // channels: [
     //   {
     //     name,
-    //     urls: [`${get_custom_url()}/txt/${f_name}.txt`],
-    //     epg: `https://iptv-sources2.pages.dev/epg/pw-7/{date}/${f_name}.json`,
-    //     // logo: `https://tv-res.pages.dev/logo/${f_name}.png`,
+    //     urls: [`${getCustomUrl()}/txt/${filename}.txt`],
+    //     epg: `https://iptv-sources2.pages.dev/epg/pw-7/{date}/${filename}.json`,
+    //     // logo: `https://tv-res.pages.dev/logo/${filename}.png`,
     //   },
     // ],
     name,
     type: 0,
-    url: `${get_custom_url()}/txt/${f_name}.txt`,
-    epg: `${get_custom_url()}/epg/pw-7/{date}/{name}.json`,
-    logo: `https://tv-res.pages.dev/logo/{name}.png`,
+    url: `${getCustomUrl()}/txt/${filename}.txt`,
+    epg: `${getCustomUrl()}/epg/pw-7/{date}/{name}.json`,
+    logo: `${CHANNEL_LOGO_BASE_URL}/{name}.png`,
   }));
 
   return j;
 };
 
-export const writeTvBoxJson = async (f_name: string, srcs: ITvBoxLiveSrc[]): Promise<void> => {
-  const tvbox_p = path.resolve('m3u', 'tvbox');
+export const writeTvBoxJson = async (filename: string, srcs: ITvBoxLiveSrc[]): Promise<void> => {
+  const tvboxDir = path.join(projectRoot, 'm3u', 'tvbox');
 
-  await fsPromises.mkdir(tvbox_p, { recursive: true });
+  await fsPromises.mkdir(tvboxDir, { recursive: true });
   await fsPromises.writeFile(
-    path.join(tvbox_p, `${f_name}.json`),
-    JSON.stringify(await gen_tvbox_json(srcs))
+    path.join(tvboxDir, `${filename}.json`),
+    JSON.stringify(await genTvBoxJson(srcs))
   );
 };

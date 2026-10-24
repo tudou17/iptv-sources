@@ -1,16 +1,10 @@
 import path from 'path';
 import fs from 'fs';
 
-import { get_custom_url } from './utils';
-
-export interface IChannelSource {
-  name: string;
-  f_name: string;
-}
-
-export type TChannelsSources = IChannelSource[];
-
-export type TChannelEpgs = TChannelsSources;
+import type { TEPGSource } from './epgs/utils';
+import { projectRoot } from './file';
+import type { ISourceBuildResult } from './pipeline/sources';
+import { getCustomUrl } from './utils';
 
 export interface IChannel {
   name: string;
@@ -30,31 +24,26 @@ export interface IChannelsResult {
   updated_at: number;
 }
 
-export const updateChannelsJson = (
-  sources: TChannelsSources,
-  sources_res: Array<[string, number | undefined]>,
-  epgs: TChannelEpgs
-) => {
-  const json_p = path.resolve('m3u', 'channels.json');
-  const url = get_custom_url();
+export const updateChannelsJson = (results: ISourceBuildResult[], epgs: TEPGSource[]) => {
+  const m3uDir = path.join(projectRoot, 'm3u');
+  const url = getCustomUrl();
 
   const result: IChannelsResult = {
     builderVersion: 1,
-    channels: sources?.map((source, idx) => ({
-      name: source.name,
-      m3u: `${url}/${source.f_name}.m3u`,
-      count: sources_res?.[idx]?.[1],
-    })),
-    epgs: epgs?.map((epg) => ({
+    channels: results.flatMap(({ source, outputs }) =>
+      outputs.map(({ filename, channelCount }) => ({
+        name: source.name,
+        m3u: `${url}/${filename}.m3u`,
+        count: channelCount,
+      }))
+    ),
+    epgs: epgs.map((epg) => ({
       name: epg.name,
-      epg: `${url}/epg/${epg.f_name}.xml`,
+      epg: `${url}/epg/${epg.filename}.xml`,
     })),
     updated_at: new Date().getTime(),
   };
 
-  if (!fs.existsSync(path.resolve('m3u'))) {
-    fs.mkdirSync(path.resolve('m3u'));
-  }
-
-  fs.writeFileSync(json_p, JSON.stringify(result));
+  fs.mkdirSync(m3uDir, { recursive: true });
+  fs.writeFileSync(path.join(m3uDir, 'channels.json'), JSON.stringify(result));
 };

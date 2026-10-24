@@ -3,14 +3,15 @@ import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
 import { hrtime } from 'process';
 import { fileURLToPath } from 'url';
-import { gzipSync } from 'zlib';
+import { promisify } from 'util';
+import { gzip } from 'zlib';
 
-import type { TEPGSource } from './epgs/utils';
-import type { ISource } from './sources';
-import { with_github_raw_url_proxy } from './sources';
-import { m3u2txt } from './utils';
+import { type IPlaylist, playlistToM3u, playlistToTxt } from './playlist';
+import { CHINA_IPTV_DIR, type IRemoteSource, withGithubRawUrlProxy } from './sources';
 
 import { mergeByDateAndChannel, parseEpgXml, sanitizeChannelFileName } from './epgs/parser';
+
+const gzipAsync = promisify(gzip);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,24 +35,83 @@ export const createSubDirectory = async (...parts: string[]) => {
   return subDir;
 };
 
-export const getContent = async (src: ISource | TEPGSource) => {
-  const now = hrtime.bigint();
-  const url = /^https:\/\/raw.githubusercontent.com\//.test(src.url)
-    ? with_github_raw_url_proxy(src.url)
-    : src.url;
-
-  const res = await fetch(url);
-  return [res.ok, await res.text(), now];
+/**
+ * 解析输出文件的完整路径，并确保其父目录存在。
+ * filename 允许带 `/` 分隔的文件夹前缀（如 `fmml/ipv6`），
+ * 会被展开为 `<base>/fmml/ipv6.<ext>`。
+ */
+export const resolveOutputFile = async (baseDir: string, filename: string, ext: string) => {
+  const target = path.join(baseDir, ...filename.split('/').filter(Boolean)) + ext;
+  await mkdir(path.dirname(target), { recursive: true });
+  return target;
 };
 
-export const writeM3u = async (name: string, m3u: string) => {
+/**
+ * 递归列出目录下所有文件（返回绝对路径），忽略子目录本身。
+ * excludeDirs 为需要跳过的顶层子目录名。
+ */
+const listFilesRecursive = (dir: string, excludeDirs: string[] = []): string[] => {
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir)
+    .filter((entry) => !excludeDirs.includes(entry))
+    .flatMap((entry) => {
+      const full = path.join(dir, entry);
+      return fs.statSync(full).isDirectory() ? listFilesRecursive(full) : [full];
+    });
+};
+
+const FETCH_CONCURRENCY = 8;
+const FETCH_RETRIES = 3;
+
+let activeFetches = 0;
+const fetchQueue: Array<() => void> = [];
+
+/** 限制同时进行的请求数，避免大量并发请求被 GitHub raw 代理限流（502 / ECONNRESET） */
+const withFetchSlot = async <T>(task: () => Promise<T>): Promise<T> => {
+  if (activeFetches >= FETCH_CONCURRENCY) {
+    await new Promise<void>((resolve) => fetchQueue.push(resolve));
+  }
+  activeFetches++;
+  try {
+    return await task();
+  } finally {
+    activeFetches--;
+    fetchQueue.shift()?.();
+  }
+};
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export const getContent = (src: IRemoteSource) =>
+  withFetchSlot(async () => {
+    const now = hrtime.bigint();
+    const url = /^https:\/\/raw.githubusercontent.com\//.test(src.url)
+      ? withGithubRawUrlProxy(src.url)
+      : src.url;
+
+    // 网络错误和 5xx 视为临时故障重试，4xx 直接返回
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const res = await fetch(url);
+        if (res.status < 500 || attempt >= FETCH_RETRIES) {
+          return [res.ok, await res.text(), now] as const;
+        }
+      } catch (e) {
+        if (attempt >= FETCH_RETRIES) throw e;
+      }
+      await sleep(1000 * attempt);
+    }
+  });
+
+export const writeM3u = async (filename: string, playlist: IPlaylist) => {
   const m3uDir = await createSubDirectory('m3u');
-  await writeFile(path.join(m3uDir, `${name}.m3u`), m3u);
+  await writeFile(await resolveOutputFile(m3uDir, filename, '.m3u'), playlistToM3u(playlist));
 };
 
 export const writeSources = async (
   name: string,
-  f_name: string,
+  filename: string,
   sources: Map<string, string[]>
 ) => {
   const srcs: Record<string, string[]> = {};
@@ -61,7 +121,7 @@ export const writeSources = async (
 
   const sourcesDir = await createSubDirectory('m3u', 'sources');
   await writeFile(
-    path.join(sourcesDir, `${f_name}.json`),
+    await resolveOutputFile(sourcesDir, filename, '.json'),
     JSON.stringify({
       name,
       sources: srcs,
@@ -69,28 +129,29 @@ export const writeSources = async (
   );
 };
 
-export const writeM3uToTxt = async (name: string, f_name: string, m3u: string) => {
-  const m3uArray = m3u.split('\n');
-  const txt = m3u2txt(m3uArray);
-
+export const writeTxt = async (filename: string, playlist: IPlaylist) => {
   const txtDir = await createSubDirectory('m3u', 'txt');
-  await writeFile(path.join(txtDir, `${f_name}.txt`), txt);
+  await writeFile(await resolveOutputFile(txtDir, filename, '.txt'), playlistToTxt(playlist));
 };
 
 export const mergeTxts = () => {
-  const txts_p = path.resolve('m3u', 'txt');
+  const txtsDir = path.join(projectRoot, 'm3u', 'txt');
 
-  const files = fs.readdirSync(txts_p);
+  const files = listFilesRecursive(txtsDir, [CHINA_IPTV_DIR]).filter(
+    (f) => path.extname(f) === '.txt'
+  );
 
-  const txts = files.map((d) => fs.readFileSync(path.join(txts_p, d).toString())).join('\n');
+  const txts = files.map((f) => fs.readFileSync(f, 'utf-8')).join('\n');
 
-  fs.writeFileSync(path.join(txts_p, 'merged.txt'), txts);
+  fs.writeFileSync(path.join(txtsDir, 'merged.txt'), txts);
 };
 
 export const mergeSources = () => {
-  const sources_p = path.resolve('m3u', 'sources');
+  const sourcesDir = path.join(projectRoot, 'm3u', 'sources');
   type Source = Record<string, string[]>; // 频道/分类名 -> URL 数组
-  const files = fs.readdirSync(sources_p);
+  const files = listFilesRecursive(sourcesDir, [CHINA_IPTV_DIR]).filter(
+    (f) => path.extname(f) === '.json'
+  );
 
   const res = {
     name: 'Sources',
@@ -98,7 +159,7 @@ export const mergeSources = () => {
   };
 
   files.forEach((f) => {
-    const so = JSON.parse(fs.readFileSync(path.join(sources_p, f), 'utf-8')).sources;
+    const so = JSON.parse(fs.readFileSync(f, 'utf-8')).sources;
 
     Object.keys(so).forEach((k) => {
       if (!res.sources[k]) {
@@ -109,17 +170,18 @@ export const mergeSources = () => {
     });
   });
 
-  fs.writeFileSync(path.join(sources_p, 'sources.json'), JSON.stringify(res));
+  fs.writeFileSync(path.join(sourcesDir, 'sources.json'), JSON.stringify(res));
 };
 
-export const writeEpgXML = async (f_name: string, xml: string) => {
+export const writeEpgXML = async (filename: string, xml: string) => {
   const epgDir = await createSubDirectory('m3u', 'epg');
-  await writeFile(path.join(epgDir, `${f_name}.xml`), xml);
+  await writeFile(path.join(epgDir, `${filename}.xml`), xml);
 };
 
-export const writeEpgXmlGz = async (f_name: string, xml: string) => {
+export const writeEpgXmlGz = async (filename: string, xml: string) => {
   const epgDir = await createSubDirectory('m3u', 'epg');
-  await writeFile(path.join(epgDir, `${f_name}.xml.gz`), gzipSync(xml));
+  const compressedXml = await gzipAsync(xml);
+  await writeFile(path.join(epgDir, `${filename}.xml.gz`), compressedXml);
 };
 export async function makeEpgDir() {
   return await createSubDirectory('m3u', 'epg');

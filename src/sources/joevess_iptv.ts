@@ -1,37 +1,21 @@
-import { collectM3uSource } from '../utils';
-import { handle_m3u, ISource, type TSources } from './utils';
+import type { ISource, TSources } from './utils';
 
-export const joevess_iptv_filter: ISource['filter'] = (
-  raw,
-  caller,
-  collectFn
-): [string, number] => {
-  const rawArray = handle_m3u(raw);
+/** 上游可能缺少 `#EXTM3U` 头部，补上 */
+export const joevessIptvTransform: ISource['transform'] = ({ header, channels }, filename) => [
+  { filename, playlist: { header: header ?? '#EXTM3U', channels } },
+];
 
-  if (!/#EXTM3U/.test(rawArray[0])) {
-    rawArray.unshift('#EXTM3U');
-  }
-
-  if (caller === 'normal' && collectFn) {
-    for (let i = 1; i < rawArray.length; i += 2) {
-      collectM3uSource(rawArray[i], rawArray[i + 1], collectFn);
-    }
-  }
-
-  return [rawArray.join('\n'), (rawArray.length - 1) / 2];
-};
-
-export const joevess_iptv_sources: TSources = [
+export const joevessIptvSources: TSources = [
   {
     name: 'joevess/IPTV home',
-    f_name: 'j_home',
+    filename: 'j_home',
     url: 'https://raw.githubusercontent.com/joevess/IPTV/main/home.m3u8',
-    filter: joevess_iptv_filter,
+    transform: joevessIptvTransform,
   },
   {
     name: 'joevess/IPTV iptv',
-    f_name: 'j_iptv',
+    filename: 'j_iptv',
     url: 'https://raw.githubusercontent.com/joevess/IPTV/main/iptv.m3u8',
-    filter: joevess_iptv_filter,
+    transform: joevessIptvTransform,
   },
 ];

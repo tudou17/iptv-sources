@@ -7,12 +7,7 @@ export interface IEnvSourcesProxy {
   github_raw_content?: IEnvSourcesProxyGitHubRawContent;
 }
 
-export interface IEnvSourcesRollback {
-  urls?: string[];
-}
-
 export interface IEnvSources {
-  rollback?: IEnvSourcesRollback;
   proxy?: IEnvSourcesProxy;
 }
 

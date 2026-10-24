@@ -1,4 +1,4 @@
-const from_infos = new Map([
+const fromInfos = new Map([
   ['sn.chinamobile.com', '中国移动陕西'],
   ['sh.chinamobile.com', '中国移动上海'],
   ['hl.chinamobile.com', '中国移动黑龙江'],
@@ -45,8 +45,8 @@ const from_infos = new Map([
   ['raw.githubusercontent.com', 'Github Raw'],
 ]);
 
-export const get_from_info = (url: string) => {
-  for (const [k, v] of from_infos) {
+export const getFromInfo = (url: string) => {
+  for (const [k, v] of fromInfos) {
     if (url.includes(k)) {
       return v;
     }

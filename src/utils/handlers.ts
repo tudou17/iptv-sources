@@ -30,26 +30,26 @@ function resolveCustomBaseUrl(input: string): string {
   return stripTrailingSlashes(url.href);
 }
 
-export const get_custom_url = (): string => {
+export const getCustomUrl = (): string => {
   const raw =
     process.env.CUSTOM_URL?.trim() || process.env.CF_PAGES_URL?.trim() || DEFAULT_CUSTOM_URL;
   return resolveCustomBaseUrl(raw);
 };
 
-export const get_github_raw_proxy_url = () => {
+export const getGithubRawProxyUrl = () => {
   const custom = process.env.CUSTOM_GITHUB_RAW_SOURCE_PROXY_URL;
   return custom ? custom : `https://ghfast.top`;
 };
 
-export const replace_github_raw_proxy_url = (s: string) => {
-  const proxy_url = get_github_raw_proxy_url();
+export const replaceGithubRawProxyUrl = (s: string) => {
+  const proxyUrl = getGithubRawProxyUrl();
   return s.replace(
     /tvg-logo="https:\/\/raw\.githubusercontent\.com\//g,
-    `tvg-logo="${proxy_url}/https://raw.githubusercontent.com/`
+    `tvg-logo="${proxyUrl}/https://raw.githubusercontent.com/`
   );
 };
 
-export const is_filted_channels = (s: string) => {
+export const isFilteredChannel = (s: string) => {
   if (s.includes('ABN')) {
     return true;
   }

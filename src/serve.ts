@@ -13,12 +13,10 @@ const router = new Router();
 const md = new MarkdownIt({ html: true });
 
 const markdownBody = (md_p: string, back_p: string) => {
-  let markdown: string = '';
-  if (!fs.existsSync(md_p)) {
-    markdown = fs.readFileSync(back_p).toString();
-  } else {
-    markdown = fs.readFileSync(md_p).toString();
-  }
+  const target = [md_p, back_p].find((p) => fs.existsSync(p));
+  if (!target) return undefined;
+
+  const markdown = fs.readFileSync(target).toString();
 
   return `
     <html lang="en">
@@ -31,7 +29,26 @@ const markdownBody = (md_p: string, back_p: string) => {
             padding: 0;
         }
         .markdown-body {
-            padding: 50px 100px;
+            box-sizing: border-box;
+            max-width: none;
+            padding: 32px clamp(16px, 4vw, 64px);
+        }
+
+        .markdown-body table {
+            display: table;
+            width: 100%;
+        }
+
+        @media (max-width: 768px) {
+            .markdown-body {
+                padding: 20px 16px;
+                overflow-x: auto;
+            }
+
+            .markdown-body table {
+                width: max-content;
+                min-width: 100%;
+            }
         }
 
         tr, td {
@@ -46,21 +63,39 @@ const markdownBody = (md_p: string, back_p: string) => {
     `;
 };
 
-app.use(Static('./m3u'));
-
 router.get('/', (ctx) => {
   const readme_p = path.resolve('m3u', 'README.md');
   const back_readme_p = path.resolve('back', 'README.md');
 
-  ctx.body = markdownBody(readme_p, back_readme_p);
+  const body = markdownBody(readme_p, back_readme_p);
+  if (!body) {
+    ctx.status = 404;
+    ctx.body = 'README.md not found, please run the build first.';
+    return;
+  }
+  ctx.body = body;
 });
 
-router.get('/list/:channel', (ctx) => {
+// channel 可以带目录，如 `iptv/multicast/beijing/unicom.list`
+router.get('/list/:channel(.+\\.list)', (ctx) => {
   const list = ctx.params.channel;
-  const list_readme_p = path.resolve('m3u', 'list', `${list}.md`);
-  const back_list_readme_p = path.resolve('back', 'list', `${list}.md`);
+  const list_dir = path.resolve('m3u', 'list');
+  const back_list_dir = path.resolve('back', 'list');
+  const list_readme_p = path.resolve(list_dir, `${list}.md`);
+  const back_list_readme_p = path.resolve(back_list_dir, `${list}.md`);
 
-  ctx.body = markdownBody(list_readme_p, back_list_readme_p);
+  // 防止通过 `..` 读取 list 目录以外的文件
+  if (!list_readme_p.startsWith(list_dir + path.sep)) {
+    ctx.status = 404;
+    return;
+  }
+
+  const body = markdownBody(list_readme_p, back_list_readme_p);
+  if (!body) {
+    ctx.status = 404;
+    return;
+  }
+  ctx.body = body;
 });
 
 router.get('/check/:channel', async (ctx) => {
@@ -108,8 +143,11 @@ router.get('/api/check', async (ctx) => {
 });
 
 app.use(router.routes());
+app.use(Static('./m3u'));
 
-app.listen(8080, () => {
-  console.log('Serving at http://127.0.0.1:8080');
-  console.log('If the network supports ipv6, visit http://[::1]:8080');
+const port = Number(process.env.PORT) || 8080;
+
+app.listen(port, () => {
+  console.log(`Serving at http://127.0.0.1:${port}`);
+  console.log(`If the network supports ipv6, visit http://[::1]:${port}`);
 });

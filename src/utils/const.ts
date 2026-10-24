@@ -1,4 +1,4 @@
-export const channels_logo = [
+export const channelsLogo = [
   '4K电影',
   'AMC',
   'ANIMAX',

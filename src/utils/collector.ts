@@ -1,4 +1,4 @@
-import { get_channel_id } from './id';
+import { getChannelId } from './id';
 
 export const Collector = (
   keyFilter?: (k: string) => boolean,
@@ -42,6 +42,6 @@ export const collectM3uSource = (
   url: string,
   fn: (k: string, v: string) => void
 ) => {
-  const id = get_channel_id(extinf);
+  const id = getChannelId(extinf);
   fn(id, url);
 };

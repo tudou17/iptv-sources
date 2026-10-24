@@ -1,3 +1,3 @@
-import type { ISource } from '../sources/utils';
+import type { IRemoteSource } from '../sources/utils';
 
-export type TEPGSource = Omit<ISource, 'filter'>;
+export type TEPGSource = IRemoteSource;

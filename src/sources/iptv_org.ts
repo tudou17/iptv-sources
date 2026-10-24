@@ -1,81 +1,62 @@
-import { is_filted_channels, collectM3uSource, get_channel_id } from '../utils';
-import { converter, handle_m3u } from './utils';
+import { dedupeChannels } from '../playlist';
+import { getChannelId, isFilteredChannel } from '../utils';
 import type { ISource, TSources } from './utils';
 
-export const iptv_org_filter: ISource['filter'] = (raw, caller, collectFn): [string, number] => {
-  const rawArray = handle_m3u(raw);
-  const invalidExp = /#EXTVLCOPT:/;
+/** 过滤屏蔽频道，按频道 id 去重 */
+export const iptvOrgTransform: ISource['transform'] = ({ header, channels }, filename) => {
+  const candidates = channels.filter(
+    ({ extinf }) => !isFilteredChannel(getChannelId(extinf).trim())
+  );
+  const deduped = dedupeChannels(candidates, ({ extinf }) => getChannelId(extinf));
 
-  const arr = rawArray.filter((r) => !invalidExp.test(r));
-
-  const sourced: string[] = [];
-  const result = [arr[0]];
-
-  for (let i = 1; i < arr.length; i += 2) {
-    const id = get_channel_id(arr[i]);
-
-    if (is_filted_channels(id.trim())) {
-      continue;
-    }
-
-    if (caller === 'normal' && collectFn) {
-      collectM3uSource(arr[i], arr[i + 1], collectFn);
-    }
-
-    if (!sourced.includes(id)) {
-      sourced.push(id);
-      result.push(
-        arr[i]
-          .replace(/@@[0-9]*/g, '')
-          .replace(/\[geo-blocked\]/, '')
-          .replace(/\[Geo-blocked\]/, '')
-          .trim()
-      );
-      result.push(arr[i + 1]);
-    }
-  }
-
-  return [converter(result.join('\n')), (result.length - 1) / 2];
+  return [
+    {
+      filename,
+      playlist: { header, channels: deduped },
+      candidates,
+    },
+  ];
 };
 
-export const iptv_org_sources: TSources = [
+export const iptvOrgSources: TSources = [
   {
     name: 'iptv.org All',
-    f_name: 'o_all',
+    filename: 'o_all',
     url: 'https://raw.githubusercontent.com/iptv-org/iptv/gh-pages/index.m3u',
-    filter: iptv_org_filter,
+    transform: iptvOrgTransform,
+    collectSources: false,
   },
   {
     name: 'iptv.org China',
-    f_name: 'o_cn',
+    filename: 'o_cn',
     url: 'https://raw.githubusercontent.com/iptv-org/iptv/gh-pages/countries/cn.m3u',
-    filter: iptv_org_filter,
+    transform: iptvOrgTransform,
   },
 ];
 
-export const iptv_org_stream_sources: TSources = [
+export const iptvOrgStreamSources: TSources = [
   {
     name: 'iptv.org stream China',
-    f_name: 'o_s_cn',
+    filename: 'o_s_cn',
     url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/cn.m3u',
-    filter: iptv_org_filter,
+    transform: iptvOrgTransform,
   },
   {
     name: 'iptv.org stream China 112114',
-    f_name: 'o_s_cn_112114',
+    filename: 'o_s_cn_112114',
     url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/cn_112114.m3u',
-    filter: iptv_org_filter,
+    transform: iptvOrgTransform,
   },
   {
     name: 'iptv.org stream China CCTV',
-    f_name: 'o_s_cn_cctv',
+    filename: 'o_s_cn_cctv',
     url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/cn_cctv.m3u',
-    filter: iptv_org_filter,
+    transform: iptvOrgTransform,
   },
   {
     name: 'iptv.org stream China CGTN',
-    f_name: 'o_s_cn_cgtn',
+    filename: 'o_s_cn_cgtn',
     url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/cn_cgtn.m3u',
-    filter: iptv_org_filter,
+    transform: iptvOrgTransform,
   },
 ];

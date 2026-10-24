@@ -1,15 +1,15 @@
-import { channels_logo } from './const';
+import { channelsLogo } from './const';
 
-const is_fmml_logo_channel = (c: string) => channels_logo.includes(c);
+const isFmmlLogoChannel = (c: string) => channelsLogo.includes(c);
 
 /**
  * @deprecated 计划建立自己的 logo 库，等待移除
  * @param c
  * @returns
  */
-export const with_fmml_logo_channel = (c: string) =>
-  is_fmml_logo_channel(c)
+export const withFmmlLogoChannel = (c: string) =>
+  isFmmlLogoChannel(c)
     ? `https://live.fanmingming.com/tv/${c}.png`
-    : is_fmml_logo_channel(c.toLowerCase())
+    : isFmmlLogoChannel(c.toLowerCase())
       ? `https://live.fanmingming.com/tv/${c.toLowerCase()}.png`
       : void 0;

@@ -1,16 +1,13 @@
-import { default_m3u_filter, type TSources } from './utils';
+import type { TSources } from './utils';
 
-export const zbds_sources: TSources = [
+/**
+ * vbskycn/iptv 发布在 live.zbds.top 的列表。
+ * 只接入 IPv4 版本：iptv6.m3u 目前只剩一条「更新时间」占位条目，没有真实频道。
+ */
+export const zbdsSources: TSources = [
   {
     name: 'vbskycn/iptv ipv4',
-    f_name: 'zbds_ipv4',
+    filename: 'zbds_ipv4',
     url: 'https://live.zbds.top/tv/iptv4.m3u',
-    filter: default_m3u_filter,
-  },
-  {
-    name: 'vbskycn/iptv ipv6',
-    f_name: 'zbds_ipv6',
-    url: 'https://live.zbds.top/tv/iptv6.m3u',
-    filter: default_m3u_filter,
   },
 ];

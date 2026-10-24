@@ -4,5 +4,5 @@ export * from './logo';
 export * from './from';
 export * from './collector';
 export * from './id';
-export * from './m3u2txt';
 export * from './trim';
+export * from './converter';

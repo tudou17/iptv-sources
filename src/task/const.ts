@@ -1,9 +1,11 @@
 import path from 'path';
 
-export const config_path = path.resolve('config');
+import { projectRoot } from '../file';
 
-export const config_custom_path = path.join(config_path, 'custom');
+export const configPath = path.join(projectRoot, 'config');
 
-export const m3u_path = path.resolve('m3u');
+export const configCustomPath = path.join(configPath, 'custom');
 
-export const write_custom_path = path.join(m3u_path, 'custom');
+export const m3uPath = path.join(projectRoot, 'm3u');
+
+export const writeCustomPath = path.join(m3uPath, 'custom');

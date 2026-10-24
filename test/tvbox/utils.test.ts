@@ -2,7 +2,7 @@ import { promises as fsPromises } from 'fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/utils', () => ({
-  get_custom_url: vi.fn(() => 'https://custom.example.com'),
+  getCustomUrl: vi.fn(() => 'https://custom.example.com'),
 }));
 
 import { writeTvBoxJson } from '../../src/tvbox/utils';
@@ -22,7 +22,7 @@ describe('writeTvBoxJson', () => {
   });
 
   it('creates tvbox directory and writes json under m3u/tvbox', async () => {
-    await writeTvBoxJson('channels', [{ name: 'Src A', f_name: 'cn' }]);
+    await writeTvBoxJson('channels', [{ name: 'Src A', filename: 'cn' }]);
 
     expect(fsPromises.mkdir).toHaveBeenCalledWith(expect.stringMatching(/m3u[/\\]tvbox$/), {
       recursive: true,
@@ -33,8 +33,8 @@ describe('writeTvBoxJson', () => {
 
   it('merges remote tvbox config with lives built from srcs (real fetch)', async () => {
     await writeTvBoxJson('all', [
-      { name: 'One', f_name: 'a' },
-      { name: 'Two', f_name: 'b' },
+      { name: 'One', filename: 'a' },
+      { name: 'Two', filename: 'b' },
     ]);
 
     const payload = JSON.parse(vi.mocked(fsPromises.writeFile).mock.calls[0][1] as string);
@@ -44,14 +44,14 @@ describe('writeTvBoxJson', () => {
       name: 'One',
       type: 0,
       url: 'https://custom.example.com/txt/a.txt',
-      epg: 'https://iptv-sources2.pages.dev/epg/pw-7/{date}/{name}.json',
+      epg: 'https://custom.example.com/epg/pw-7/{date}/{name}.json',
       logo: 'https://tv-res.pages.dev/logo/{name}.png',
     });
     expect(payload.lives[1]).toEqual({
       name: 'Two',
       type: 0,
       url: 'https://custom.example.com/txt/b.txt',
-      epg: 'https://iptv-sources2.pages.dev/epg/pw-7/{date}/{name}.json',
+      epg: 'https://custom.example.com/epg/pw-7/{date}/{name}.json',
       logo: 'https://tv-res.pages.dev/logo/{name}.png',
     });
   }, 20_000);

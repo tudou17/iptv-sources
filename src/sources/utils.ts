@@ -1,99 +1,69 @@
 import 'dotenv/config';
 
-import * as OpenCC from 'opencc-js';
-import { collectM3uSource, get_github_raw_proxy_url } from '../utils';
+import type { IChannel, IPlaylist } from '../playlist';
+import { normalizePlaylist, m3uToPlaylist } from '../playlist';
+import { getGithubRawProxyUrl, replaceGithubRawProxyUrl } from '../utils';
 
-export interface ISource {
+/** 需要拉取的远程文件 */
+export interface IRemoteSource {
   name: string;
-  f_name: string;
+  /**
+   * 输出文件名（不含扩展名）。
+   * 可以带 `/` 分隔的文件夹前缀，如 `fmml/ipv6`，
+   * 会输出到 m3u/fmml/ipv6.m3u、m3u/txt/fmml/ipv6.txt 等。
+   * 请统一使用 `/`（而非 `\`），因为同一个值也会被拼进 URL。
+   */
+  filename: string;
   url: string;
-  filter: (
-    raw: string,
-    caller: 'normal' | 'skip' | 'rollback',
-    collectFn?: (k: string, v: string) => void
-  ) => [string, number];
+}
+
+/** 一个源生成的一份播放列表 */
+export interface ISourceOutput {
+  filename: string;
+  playlist: IPlaylist;
+  /** 收集到 sources.json 的频道（去重前的全部候选），缺省为 playlist.channels */
+  candidates?: IChannel[];
+  /** 局域网代理版本才有 */
+  lanProxy?: {
+    /** 网段前缀，如 `192.168.1` */
+    ipPrefix: string;
+    /** 未加网段后缀的文件名 */
+    baseFilename: string;
+  };
+}
+
+export interface ISource extends IRemoteSource {
+  /** 把上游原文解析为播放列表，默认按 m3u 解析 */
+  parse?: (raw: string) => IPlaylist;
+  /** 由播放列表生成输出文件，默认原样输出到 filename */
+  transform?: (playlist: IPlaylist, filename: string) => ISourceOutput[];
+  /** 是否把频道地址收集到 sources.json，默认 true；全量大源关闭 */
+  collectSources?: boolean;
+  /** 是否对输出做默认改写（见 normalizeChannel），默认 true；需要原样输出时关闭 */
+  normalize?: boolean;
 }
 
 export type TSources = ISource[];
 
-export const converter = OpenCC.Converter({ from: 'hk', to: 'cn' });
+export const buildSourceOutputs = (source: ISource, raw: string): ISourceOutput[] => {
+  const playlist = (source.parse ?? m3uToPlaylist)(raw);
+  const outputs = source.transform
+    ? source.transform(playlist, source.filename)
+    : [{ filename: source.filename, playlist }];
 
-export const handle_m3u = (r: string) => {
-  const raw = r
-    .trim()
-    .replace(/\r/g, '')
-    .split('\n')
-    .filter((r) => !!r);
-
-  let result: string[] = [];
-
-  const extM3uRegExp = /#EXTM3U/;
-  const extinfRegExp = /#EXTINF:-1([^,]*),(.*)/;
-  const hostRegExp = /^([^:]+):\/\/([^/]+)/;
-
-  for (let i = 0; i < raw.length; i++) {
-    if (extM3uRegExp.test(raw[i])) {
-      result.push(raw[i]);
-      continue;
-    }
-
-    if (extinfRegExp.test(raw[i]) && hostRegExp.test(raw[i + 1])) {
-      result = result.concat([raw[i], raw[i + 1]]);
-      i++;
-      continue;
-    }
-  }
-
-  return result;
+  if (source.normalize === false) return outputs;
+  return outputs.map((output) => ({ ...output, playlist: normalizePlaylist(output.playlist) }));
 };
 
-export const with_github_raw_url_proxy = (u: string) => {
-  return process.env.CLOSE_SOURCE_PROXY?.trim() === 'true'
-    ? u
-    : `${get_github_raw_proxy_url()}/${u}`;
-};
+/** tvg-logo 中的 GitHub raw 地址走代理 */
+export const withGithubRawLogoProxy = (playlist: IPlaylist): IPlaylist => ({
+  ...playlist,
+  channels: playlist.channels.map((channel) => ({
+    ...channel,
+    extinf: replaceGithubRawProxyUrl(channel.extinf),
+  })),
+});
 
-export const default_m3u_filter: ISource['filter'] = (raw, caller, collectFn): [string, number] => {
-  const rawArray = handle_m3u(raw);
-
-  if (caller === 'normal' && collectFn) {
-    for (let i = 1; i < rawArray.length; i += 2) {
-      collectM3uSource(rawArray[i], rawArray[i + 1], collectFn);
-    }
-  }
-
-  return [rawArray.join('\n'), (rawArray.length - 1) / 2];
-};
-
-export const default_txt_filter: ISource['filter'] = (raw, caller, collectFn): [string, number] => {
-  const rawArray = raw
-    .trim()
-    .replace(/\r/g, '')
-    .split('\n')
-    .filter((r) => !!r);
-  let count = 0;
-  let group = '未分类';
-  const m3uLines: string[] = ['#EXTM3U x-tvg-url="https://tv.whyun.com/epg/51zmt.xml"'];
-  if (caller === 'normal' && collectFn) {
-    for (let i = 0; i < rawArray.length; i++) {
-      const line = rawArray[i].trim();
-      const [name, url] = line.split(',');
-      if (url == '#genre#') {
-        group = name.trim();
-        continue;
-      }
-
-      if (!url) {
-        continue;
-      }
-      const logoName = name.replace(/CCTV/g, 'cctv');
-      const extinf = `#EXTINF:-1 tvg-id="${name}" tvg-name="${name}" \
-tvg-logo="https://tv-res.pages.dev/logo/${logoName}.png" group-title="${group}",${name}`;
-      collectM3uSource(extinf, url, collectFn);
-      m3uLines.push(extinf, url);
-      count++;
-    }
-  }
-
-  return [m3uLines.join('\n'), count];
+export const withGithubRawUrlProxy = (u: string) => {
+  return process.env.CLOSE_SOURCE_PROXY?.trim() === 'true' ? u : `${getGithubRawProxyUrl()}/${u}`;
 };
